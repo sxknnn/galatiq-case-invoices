@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Models
-MODEL = "xai:grok-3"
+MODEL = "xai:grok-4.7"
 # MODEL = "openai:your-model"
 # MODEL = "ollama:llama3.2"
 
