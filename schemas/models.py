@@ -1,5 +1,6 @@
 """The invoice structure shared by every stage."""
 import re
+from datetime import datetime
 from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
@@ -65,3 +66,17 @@ class Invoice(BaseModel):
     @classmethod
     def clean_currency(cls, value):
         return str(value).strip().upper() if value else "USD"
+    
+DATE_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%b %d %Y", "%b %d, %Y", "%B %d %Y", "%B %d, %Y", "%d-%b-%Y")
+
+
+def parse_date(value):
+    """Return a date, or None when the text isn't one, such as 'yesterday'."""
+    if not value:
+        return None
+    for date_format in DATE_FORMATS:
+        try:
+            return datetime.strptime(str(value).strip(), date_format).date()
+        except ValueError:
+            continue
+    return None
