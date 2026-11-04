@@ -55,7 +55,7 @@ def extract(state):
     try:
         reply = data["llm"].invoke(messages).content
         messages.append(("assistant", reply))
-        data["candidate"] = _parse_json(reply)
+        data["candidate"] = parse_json(reply)
         data["method"] = "LLM"
         state.log("extract", f"LLM attempt {data['attempts']} returned fields")
     except Exception as exc:  # Providers raise many error types, and any of them means use the fallback.
@@ -71,7 +71,7 @@ def _use_patterns(state, method):
     state.log("extract", f"{method} attempt {data['attempts']} returned fields")
 
 
-def _parse_json(reply):
+def parse_json(reply):
     """Models sometimes wrap JSON in code fences or prose."""
     match = re.search(r"\{.*\}", reply, flags=re.S)
     if not match:
