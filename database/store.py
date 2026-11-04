@@ -1,5 +1,6 @@
 """SQLite storage for the mock inventory and the payment ledger."""
 import sqlite3
+import config
 
 # Starter data from the brief, plus prices so we can flag overcharges later.
 SEED_INVENTORY = [
@@ -11,7 +12,7 @@ SEED_INVENTORY = [
 
 
 class Store:
-    def __init__(self, path="inventory.db"):
+    def __init__(self, path=config.DB_PATH):
         self.conn = sqlite3.connect(path)
         self.conn.row_factory = sqlite3.Row  # Lets us read columns by name.
         self.conn.executescript(
