@@ -1,7 +1,7 @@
 """The invoice structure shared by every stage."""
 import re
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -86,3 +86,15 @@ class Finding(BaseModel):
     code: str
     severity: str  # "warning", "hold" or "reject"
     message: str
+
+
+class VPDecision(BaseModel):
+    decision: Literal["APPROVE", "HOLD", "REJECT"]
+    reasoning: str
+    risk_factors: List[str] = Field(default_factory=list)
+
+
+class Critique(BaseModel):
+    verdict: Literal["agree", "object"]
+    critique: str
+    recommended_decision: Optional[Literal["APPROVE", "HOLD", "REJECT"]] = None
