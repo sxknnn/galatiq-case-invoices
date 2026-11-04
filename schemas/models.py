@@ -80,3 +80,9 @@ def parse_date(value):
         except ValueError:
             continue
     return None
+
+
+class Finding(BaseModel):
+    code: str
+    severity: str  # "warning", "hold" or "reject"
+    message: str

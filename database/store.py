@@ -47,3 +47,19 @@ class Store:
             "SELECT * FROM inventory WHERE lower(item) = lower(?)", (name,)
         ).fetchone()
         return dict(row) if row else None
+
+    
+    def paid_records(self, invoice_number):
+        rows = self.conn.execute(
+            "SELECT * FROM ledger WHERE invoice_number = ? AND status = 'PAID'",
+            (invoice_number,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def record(self, invoice_number, revision, vendor, amount, status, reason):
+        self.conn.execute(
+            "INSERT INTO ledger (invoice_number, revision, vendor, amount, status, reason) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (invoice_number, revision or "", vendor, amount, status, reason),
+        )
+        self.conn.commit()
