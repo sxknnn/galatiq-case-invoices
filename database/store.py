@@ -63,3 +63,7 @@ class Store:
             (invoice_number, revision or "", vendor, amount, status, reason),
         )
         self.conn.commit()
+
+    def reset_ledger(self):
+        self.conn.execute("DELETE FROM ledger")
+        self.conn.commit()
