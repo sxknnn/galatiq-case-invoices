@@ -2,8 +2,11 @@
 import csv
 import io
 import json
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+import pdfplumber
 
 
 def parse_structured(path):
@@ -129,3 +132,30 @@ def _csv_table(header, rows):
             elif label.startswith("total"):
                 result["total"] = value
     return result
+
+class UnreadableDocument(Exception):
+    pass
+
+
+def load_text(path):
+    """Return a file's text, or raise UnreadableDocument with a clear reason."""
+    path = Path(path)
+    if not path.is_file():
+        raise UnreadableDocument(f"File not found: {path}")
+    if path.suffix.lower() != ".pdf":
+        return path.read_text(encoding="utf-8-sig", errors="replace")
+    try:
+        with pdfplumber.open(path) as pdf:
+            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+    except Exception as exc:
+        raise UnreadableDocument(f"Could not open PDF: {exc}") from exc
+    if not text.strip():
+        raise UnreadableDocument("PDF has no text layer (it may be a scan)")
+    return text
+
+
+def repair_ocr(text):
+    """Fix the letter O used for zero, but only next to digits or money punctuation."""
+    text = re.sub(r"(?<=\d)O(?=\d)", "0", text)
+    text = re.sub(r"(?<=[\d.,])O(?=[\d\s]|$)", "0", text, flags=re.M)
+    return re.sub(r"(?<=\d)O(?=\b)", "0", text)
