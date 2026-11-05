@@ -65,7 +65,10 @@ class Invoice(BaseModel):
     @field_validator("currency", mode="before")
     @classmethod
     def clean_currency(cls, value):
-        return str(value).strip().upper() if value else "USD"
+        """Models sometimes return a symbol, so '$' becomes 'USD'."""
+        symbols = {"$": "USD", "US$": "USD", "€": "EUR", "£": "GBP"}
+        text = str(value).strip().upper() if value else "USD"
+        return symbols.get(text, text)
     
 DATE_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%b %d %Y", "%b %d, %Y", "%B %d %Y", "%B %d, %Y", "%d-%b-%Y")
 

@@ -71,3 +71,8 @@ def test_unreadable_files_give_a_clear_error(tmp_path):
         load_text(bad_pdf)
     with pytest.raises(UnreadableDocument):
         load_text(tmp_path / "missing.txt")
+
+
+@pytest.mark.parametrize("value,expected", [("$", "USD"), ("us$", "USD"), ("usd", "USD"), ("€", "EUR"), ("£", "GBP"), (None, "USD")])
+def test_currency_symbols_become_codes(value, expected):
+    assert Invoice(currency=value).currency == expected
