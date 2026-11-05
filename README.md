@@ -1,119 +1,103 @@
-# Galatiq Case: Invoice Processing Automation
+# AutoVoice
 
-## Background
+AutoVoice is a working multi-agent prototype that takes an invoice from a messy file to one of three results: paid, rejected or held for a person. Every step is recorded.
 
-Acme Corp is a PE-backed manufacturing firm losing **$2M/year** on manual invoice processing. Invoices arrive via email as PDFs in messy formats with frequent errors. Staff manually extract data, validate against a legacy inventory database (inconsistent), obtain VP approval (via email chains), and process payment (via a banking API).
+It was built for the Galatiq invoice processing case. Acme Corp is fictional, the sample invoices are test data, and no real money moves: payments go through a mock function.
 
-**Current pain points:**
-- 30% error rate
-- 5-day processing delays
-- Frustrated stakeholders
+## Why it matters
 
-## Objective
+Acme loses an estimated $2M a year on manual invoice processing, with a 30% error rate and 5-day delays.
 
-Build a **multi-agent system** that automates the end-to-end invoice processing workflow. The system must run as a working prototype — not just designs or slides.
+| Problem | What AutoVoice changes |
+|---|---|
+| Errors and overpayments | Repeatable checks cover stock, totals, duplicates and fraud signals, and the database blocks a second payment |
+| 5-day delays | Clean invoices finish without a person, so staff only see the ones that need them |
+| Approvals lost in email chains | Each decision has written reasoning and an audit trail |
 
-## Workflow
+These results come from 20 sample files, not production data. The share of the $2M this would recover would need to be measured in a pilot.
 
-The system should handle four stages:
+## Quick start
 
-1. **Ingestion** — Extract structured data from invoice documents (PDFs, text files). Fields include: Vendor, Amount, Items (with quantities), and Due Date. Expect unstructured text, typos, missing data, and potentially fraudulent entries.
-
-2. **Validation** — Verify extracted data against a mock inventory database (SQLite). Flag mismatches such as quantity exceeding available stock or items not found in inventory.
-
-3. **Approval** — Simulate VP-level review with rule-based decision-making (e.g., invoices over $10K require additional scrutiny). The agent should reason through approval/rejection with a reflection or critique loop.
-
-4. **Payment** — If approved, call a mock payment function. If rejected, log the rejection with reasoning.
-
-## Technical Requirements
-
-- **LLM Integration**: Use xAI's Grok as the core reasoning engine (via the xAI API at https://grok.x.ai). Other models are acceptable if you don't have an API key.
-- **Multi-Agent Orchestration**: Use a framework such as LangGraph, CrewAI, AutoGen, or a custom solution.
-- **Agent Capabilities**: Function calling / tool use, structured outputs, and self-correction loops.
-- **Runtime**: Assume no internet for external APIs — simulate everything locally.
-- **Tech Stack**: Python (preferred), with libraries like `langchain`, `crewai`, `autogen`, `pdfplumber`, `PyMuPDF`, etc. Run locally — no cloud deployment.
-
-## Provided Resources
-
-### Mock Invoice Data
-
-Sample invoices are provided in the `data/invoices/` directory in various formats (PDF, CSV, JSON, TXT). Use these as inputs for testing. The data intentionally includes a mix of clean entries and problematic ones — identifying and handling issues is part of the challenge.
-
-### Mock Inventory Database (Required Setup)
-
-Before running the system, you **must** create a local SQLite database that the validation agent will check invoices against. The sample invoices in `data/invoices/` reference specific items and quantities — your database needs to contain matching inventory records so the validation stage can flag mismatches, out-of-stock items, and unknown products.
-
-Below is a starter schema and seed data that covers the core items referenced across the provided invoices:
-
-```python
-import sqlite3
-
-conn = sqlite3.connect('inventory.db')  # Persist to file so all agents can access it
-cursor = conn.cursor()
-
-cursor.execute('CREATE TABLE IF NOT EXISTS inventory (item TEXT PRIMARY KEY, stock INTEGER)')
-cursor.execute("""
-    INSERT INTO inventory VALUES
-    ('WidgetA', 15),
-    ('WidgetB', 10),
-    ('GadgetX', 5),
-    ('FakeItem', 0)
-""")
-conn.commit()
-```
-
-**Why this matters:** The sample invoices are designed to test your validation logic against this database. For example:
-
-| Scenario | Invoice | What should happen |
-|---|---|---|
-| Normal order within stock | INV-1001, INV-1004, INV-1006 | Items found, quantities valid — passes validation |
-| Quantity exceeds stock | INV-1002 (requests 20× GadgetX, only 5 in stock) | Flagged as stock mismatch |
-| Fraudulent / zero-stock item | INV-1003 (references FakeItem, 0 stock) | Flagged as out of stock or suspicious |
-| Item not in database at all | INV-1008 (SuperGizmo, MegaSprocket), INV-1016 (WidgetC) | Flagged as unknown item |
-| Invalid data | INV-1009 (negative quantity) | Flagged as data integrity issue |
-
-You may extend the seed data with additional items or columns (e.g., unit price, category) to support richer validation — the above is the minimum needed to exercise the provided test invoices. If you want your system to also validate pricing or vendor information, consider adding tables for those as well.
-
-### Mock Payment API
-
-```python
-def mock_payment(vendor, amount):
-    print(f"Paid {amount} to {vendor}")
-    return {"status": "success"}
-```
-
-### Grok API Setup
-
-```python
-from xai import Grok
-
-client = Grok(api_key="your_key")
-response = client.chat.completions.create(
-    model="grok-3",
-    messages=[{"role": "user", "content": "Reason about this..."}]
-)
-```
-
-## Running the System
-
-The system should be executable from the command line:
+Tested on Python 3.12.
 
 ```bash
-python main.py --invoice_path=data/invoices/invoice1.txt
+python -m venv .venv
+source .venv/Scripts/activate      # Windows Git Bash (macOS/Linux: source .venv/bin/activate)
+pip install -r requirements.txt
+
+streamlit run app.py                                           # the app
+python main.py --invoice_path=data/invoices/invoice_1001.txt   # one invoice
+python main.py --batch=data/invoices --offline --reset         # all samples, no model
+python -m pytest -q                                            # tests
 ```
 
-Output should include structured logs and results.
+**No API key is needed to try it.** Without a key, a built-in simulation stands in for the model, so everything runs offline. In the app, this is the Demo mode switch.
 
-## Evaluation Criteria
+To use Grok, create a `.env` file containing `XAI_API_KEY=your_key`. To use another model, change the `MODEL` line in `config.py`.
 
-- **Functionality** — Does the system work end-to-end?
-- **Code Quality** — Clean, testable, well-structured code with error handling and observability
-- **Agentic Sophistication** — LLM integration, multi-agent flow, tool use, self-correction loops
-- **Shipping Mindset** — Valuable MVP delivered under ambiguity; scope ruthlessly cut where needed
-- **Presentation** — Clear translation of technical decisions to business impact
-- **Above/Beyond** - Have you made it your own? Implemented additional features that make the solution feel great? Expanded assumptions? Added to test cases?
-- **UI/UX** - Users will understand and enjoy using this system.
+The ledger is kept between runs, so processing a paid invoice again is rejected as a duplicate. Use `--reset` to start over.
 
-## Submission
+## How it works
 
-Submit your solution as a link to a public GitHub repository — GitHub only (github.com).
+```
+file -> extract <-> verify -> validate -> VP <-> critic -> pay | hold | reject
+```
+
+| Stage | Who does it | What happens |
+|---|---|---|
+| **Read** | Parser for JSON, CSV and XML; model for TXT and PDF | Produces a checked invoice. A verifier catches schema errors, unreadable dates and values not found in the source, then sends them back for a retry. |
+| **Check** | Code | Compares the invoice with the SQLite inventory, and checks totals, duplicates, currency and fraud signals. |
+| **Approve** | VP and critic agents, within fixed rules | The VP uses tools to look up policy and inventory, then decides. High-value, risky or rejected invoices also go to a critic, who can send the decision back. The VP has the final say. |
+| **Pay** | Code | Pays only after approval. Otherwise the invoice is rejected or held, with the reason logged. |
+
+The workflow runs on LangGraph, including the retry and review loops.
+
+### Key decisions
+
+- **The model can be stricter than the rules, but never more lenient.** Code sets the most lenient decision allowed, so a wrong or manipulated reply can't release money.
+- **There are three outcomes, not two.** Some invoices aren't wrong but do need a person. These go to a review queue, where someone can pay or reject them and must leave a note.
+- **Failures are safe.** If the model fails during extraction, pattern matching takes over. If it fails during approval, the invoice is rejected.
+- **Payments have a last line of defense.** A unique database index blocks a second payment even if every earlier check misses it.
+- **A revision pays only the difference.** A corrected version of a paid invoice doesn't get paid in full again.
+- **Invoice text is treated as data.** Text that tries to instruct the system causes a rejection.
+
+## Results on the sample invoices
+
+In Demo mode, running all 20 files in filename order pays 6, holds 4 and rejects 10, releasing $26,325. With a live model, the wording and some decisions may differ, but the rules still apply.
+
+| Invoice | Result | Why |
+|---|---|---|
+| 1001, 1004, 1006, 1011 (PDF), 1015 | Paid | Clean |
+| 1010 | Paid, with a warning | A WidgetA rush line is 20% above catalog price |
+| 1002, 1005 | Rejected | GadgetX quantity exceeds stock |
+| 1003 | Rejected | Zero-stock item, a due date of "yesterday", and pressure language |
+| 1007 | Rejected | Exceeds stock, and the stated total is $110 too low |
+| 1008, 1016 | Rejected | Items not in inventory |
+| 1009 | Rejected | No vendor or due date, with a negative quantity and total |
+| 1011 (TXT) | Rejected | The same invoice in another format, already paid |
+| 1013 (JSON and PDF) | Rejected | Lines look fine alone but exceed stock when summed, and the total is $50 too high |
+| 1004 revised | Held | Already paid at $1,890, so only the difference may be due |
+| 1012 (TXT and PDF) | Held | The critic objects: a vendor rename plus a total just under $10,000 |
+| 1014 | Held | In EUR, and the payment function has no currency field |
+
+## Assumptions and limits
+
+- Stock isn't reduced after payment. The brief expects INV-1001, 1004 and 1006 to all pass, which they might not if each one used up stock.
+- Catalog prices are inferred from the sample invoices, and a missing currency is treated as USD.
+- Scanned PDFs with no text layer can't be read, because OCR was cut from scope.
+- Not all fraud is caught. There is no address or vendor check, which would need a real vendor list.
+- Non-USD invoices can only be rejected in the review queue, because the payment function only pays USD.
+
+## Project layout
+
+```
+app.py          Streamlit app
+main.py         command line
+config.py       model and settings
+agents/         extraction, VP and critic agents, model setup
+workflow/       LangGraph workflow and pipeline
+services/       file reading, validation, payment and human review
+database/       SQLite inventory and ledger
+schemas/        typed invoice and decision models
+tests/          expected results for the samples, plus failure cases
+```
