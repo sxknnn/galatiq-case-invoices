@@ -1,5 +1,6 @@
 """AutoVoice: a client-facing invoice dashboard. Run with: streamlit run app.py"""
 import tempfile
+from html import escape
 import time
 from pathlib import Path
 
@@ -9,6 +10,9 @@ import streamlit as st
 import config
 from agents.llm import get_llm
 from database.store import Store
+from schemas.models import parse_date
+from services.review import ReviewError, amount_due, approval_blocker, approve_held, reject_held
+from services.validation import canonical_item
 from workflow.pipeline import process_invoice
 
 APP_NAME = "AutoVoice"
@@ -39,7 +43,7 @@ CHECKS = [
       "INVALID_INVOICE_DATE", "NO_LINE_ITEMS"}),
     ("Inventory and stock", "Confirms each item is in inventory, and that the quantities are valid and in stock.",
      {"INVALID_QUANTITY", "UNKNOWN_ITEM", "OUT_OF_STOCK", "STOCK_EXCEEDED"}),
-    ("Prices", "Compares each unit price with the catalog price.", {"PRICE_VARIANCE"}),
+    ("Prices", "Flags any unit price more than 10% above the catalog price.", {"PRICE_VARIANCE"}),
     ("Math", "Adds up the line amounts, subtotal, tax and shipping, then compares them with the total.",
      {"LINE_TOTAL_MISMATCH", "MISSING_TOTAL", "INVALID_TOTAL", "SUBTOTAL_MISMATCH", "TOTAL_MISMATCH"}),
     ("Past payments", "Checks whether this invoice or an earlier version has already been paid.",
@@ -75,6 +79,7 @@ STEP_ICONS = {
 
 CHECK_ICONS = {
     "passed": '<circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/>',
+    "skipped": '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/>',
     "blocked": '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>',
     "flagged": (
         '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/>'
@@ -84,6 +89,7 @@ CHECK_ICONS = {
 CHECK_COLORS = {
     "blocked": {"light": "#C02B2B", "dark": "#F87171"},
     "flagged": {"light": "#B25E00", "dark": "#F2B62B"},
+    "skipped": {"light": "#5F6B7A", "dark": "#A3AEBB"},
 }
 
 
@@ -179,8 +185,32 @@ def show_read_step(result):
     st.dataframe(items, hide_index=True)
 
 
+def skip_reason(title, invoice):
+    """Explain why a check couldn't run, so that it isn't shown as passed."""
+    items = invoice["items"]
+    if title == "Inventory and stock" and not items:
+        return "No line items were found."
+    if title == "Prices":
+        if not items:
+            return "No line items were found."
+        if invoice["currency"] != "USD":
+            return f"Catalog prices are in USD, and this invoice is in {escape(invoice['currency'])}."
+        if any(line["unit_price"] is None for line in items):
+            return "Some line items have no unit price."
+        records = [store.lookup_item(canonical_item(line["name"])) for line in items]
+        if not all(record and record["unit_price"] for record in records):
+            return "Some items have no catalog price to compare with."
+    if title == "Math" and any(line["quantity"] is None or line["unit_price"] is None for line in items):
+        return "Some line items have no quantity or unit price."
+    if title == "Past payments" and not invoice["invoice_number"]:
+        return "The invoice has no number to look up."
+    if title == "Dates and terms" and not (parse_date(invoice["invoice_date"]) and parse_date(invoice["due_date"])):
+        return "The invoice date or due date is missing or unreadable."
+    return None
+
+
 def show_check_line(status, title, explanation):
-    """One line of the checks list. The title and explanation are fixed text, so the HTML is safe."""
+    """One line of the checks list. Invoice text in the explanation is escaped first, so the HTML is safe."""
     color = accent() if status == "passed" else CHECK_COLORS[status][theme_mode()]
     icon = lucide_icon(CHECK_ICONS[status], size=20)
     st.markdown(
@@ -199,6 +229,10 @@ def show_check_step(result):
     for title, explanation, codes in CHECKS:
         found = [finding for finding in remaining if finding["code"] in codes]
         remaining = [finding for finding in remaining if finding["code"] not in codes]
+        skipped = skip_reason(title, result["invoice"])
+        if not found and skipped:
+            show_check_line("skipped", title, f"Not checked. {skipped}")
+            continue
         if not found:
             show_check_line("passed", title, explanation)
             continue
@@ -210,27 +244,23 @@ def show_check_step(result):
         st.markdown(f"- **{SEVERITY_LABELS[finding['severity']]}:** {safe(finding['message'])}")
 
 
-def round_label(reviewer, number, total):
-    """Mention rounds only when the critic's objection caused more than one."""
-    return f"{reviewer}, round {number}" if total > 1 else reviewer
-
-
-def show_vp_step(result):
-    if not result["drafts"]:
-        st.write("The VP didn't review this, because the file couldn't be read.")
-    for number, draft in enumerate(result["drafts"], start=1):
+def show_review_step(result):
+    """The VP and critic in the order they acted, so the critique loop reads as it happened."""
+    drafts, critiques = result["drafts"], result["critiques"]
+    if not drafts:
+        st.write("The VP and critic didn't review this, because the file couldn't be read.")
+    for number, draft in enumerate(drafts, start=1):
         with st.container(border=True):
-            st.caption(round_label("VP of Finance", number, len(result["drafts"])))
+            if len(drafts) > 1:
+                st.write(f"**Round {number}**")
+            st.caption("VP of Finance")
             st.write(safe(draft["reasoning"]))
-
-
-def show_critic_step(result):
-    if not result["critiques"]:
-        st.write("The critic didn't review this, because the file couldn't be read.")
-    for number, critique in enumerate(result["critiques"], start=1):
-        with st.container(border=True):
-            st.caption(round_label("Critic", number, len(result["critiques"])))
-            st.write(safe(critique["critique"]))
+            if number <= len(critiques):
+                st.caption("Critic")
+                st.write(safe(critiques[number - 1]["critique"]))
+            elif not critiques:
+                st.caption("Critic")
+                st.write("Not needed. The VP approved, nothing was flagged, and the total is within the limit.")
 
 
 def show_final_decision(result):
@@ -259,11 +289,9 @@ def show_result(result):
     show_read_step(result)
     st.subheader("2. Run checks")
     show_check_step(result)
-    st.subheader("3. VP review")
-    show_vp_step(result)
-    st.subheader("4. Critic review")
-    show_critic_step(result)
-    st.subheader("5. Final decision")
+    st.subheader("3. VP and critic review")
+    show_review_step(result)
+    st.subheader("4. Final decision")
     show_final_decision(result)
     with st.expander(f"Full audit trail ({len(result['trace'])} events)"):
         for entry in result["trace"]:
@@ -275,7 +303,7 @@ def process_single(path, store, llm):
     pause = 0.25 if llm is None else 0  # The offline run is otherwise too fast to see.
     on_step = live_tracker(placeholder, pause)
     with st.spinner("Checking your invoice"):
-        result = process_invoice(path, store, llm, config.AUDIT_LOG, on_step)
+        result = process_invoice(path, store, llm, config.AUDIT_LOG_FILE, on_step)
     placeholder.empty()
     return result
 
@@ -289,10 +317,53 @@ def process_all(store, llm):
     results = []
     for number, path in enumerate(paths, start=1):
         progress.progress((number - 1) / len(paths), text=f"Checking {path.name} ({number} of {len(paths)})")
-        results.append(process_invoice(path, store, llm, config.AUDIT_LOG, on_step))
+        results.append(process_invoice(path, store, llm, config.AUDIT_LOG_FILE, on_step))
     progress.empty()
     placeholder.empty()
     return results
+
+
+def show_review_queue(store):
+    """Held invoices wait here for a person to pay or reject them."""
+    message = st.session_state.pop("review_message", None)
+    if message:
+        st.success(message)
+    rows = store.held_invoices()
+    if not rows:
+        st.info("No invoices are waiting for review.")
+        return
+    st.write(f"**{len(rows)} waiting for review.** A note is required for each decision.")
+    for row in rows:
+        with st.container(border=True):
+            amount = row["amount"] or 0
+            currency = row["currency"] or "unknown currency"
+            st.write(f"**{safe(row['invoice_number'] or 'No invoice number')}** from "
+                     f"{safe(row['vendor'] or 'no vendor')}: {safe(f'{amount:,.2f} {currency}')}")
+            st.write(safe(row["reason"] or ""))
+            blocker = approval_blocker(row, store)
+            due = amount_due(row, store)
+            if blocker:
+                st.warning(blocker)
+            elif due != amount:
+                st.info(safe(f"An earlier version was already paid, so approving pays only the remaining {due:,.2f} USD."))
+            note = st.text_input("Your note", key=f"note_{row['id']}")
+            approve_column, reject_column, _ = st.columns([1, 1, 3])
+            label = "Approve and pay" if blocker else f"Approve and pay {due:,.2f}"
+            approve = approve_column.button(label, key=f"approve_{row['id']}", type="primary", disabled=bool(blocker))
+            reject = reject_column.button("Reject", key=f"reject_{row['id']}")
+            if approve or reject:
+                try:
+                    if approve:
+                        paid = approve_held(store, row["id"], note, config.AUDIT_LOG_FILE)
+                        result_message = f"Paid {paid:,.2f} USD for {row['invoice_number']}."
+                    else:
+                        reject_held(store, row["id"], note, config.AUDIT_LOG_FILE)
+                        result_message = f"Rejected {row['invoice_number']}."
+                except ReviewError as exc:
+                    st.error(safe(exc))
+                else:
+                    st.session_state["review_message"] = safe(result_message)
+                    st.rerun()
 
 
 def show_dashboard(store):
@@ -397,7 +468,9 @@ with st.sidebar:
         st.session_state["page"] = "home"
         st.rerun()
 
-process_tab, batch_tab, dashboard_tab = st.tabs(["Process an invoice", "Process all samples", "Dashboard"])
+process_tab, batch_tab, review_tab, dashboard_tab = st.tabs(
+    ["Process an invoice", "Process all samples", "Review queue", "Dashboard"]
+)
 
 with process_tab:
     chosen = st.selectbox("Choose a sample invoice", [path.name for path in sample_paths()])
@@ -430,6 +503,9 @@ with batch_tab:
         selected = st.selectbox("See how one was decided", [result["file"] for result in results])
         result = next(item for item in results if item["file"] == selected)
         show_result(result)
+
+with review_tab:
+    show_review_queue(store)
 
 with dashboard_tab:
     show_dashboard(store)

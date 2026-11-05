@@ -9,8 +9,7 @@ MODEL = "xai:grok-4.7"
 # MODEL = "ollama:llama3.2"
 
 # Workflow
-DB_PATH = "data/acme.db"
-APPROVAL_THRESHOLD = 10_000
-MAX_REVIEW_ROUNDS = 2
-MAX_EXTRACTION_ATTEMPTS = 3
-AUDIT_LOG = "logs/audit.jsonl"
+LEDGER_DATABASE = "data/autovoice.db"
+REVIEW_LIMIT_USD = 10_000
+EXTRACTION_TRIES = 3
+AUDIT_LOG_FILE = "logs/audit.jsonl"

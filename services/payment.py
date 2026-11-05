@@ -30,6 +30,7 @@ def _record(state, status):
         invoice.total if invoice else None,
         status,
         short_reason(state),
+        invoice.currency if invoice else None,
     )
 
 

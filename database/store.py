@@ -12,7 +12,7 @@ SEED_INVENTORY = [
 
 
 class Store:
-    def __init__(self, path=config.DB_PATH):
+    def __init__(self, path=config.LEDGER_DATABASE):
         self.conn = sqlite3.connect(path)
         self.conn.row_factory = sqlite3.Row  # Lets us read columns by name.
         self.conn.executescript(
@@ -37,6 +37,10 @@ class Store:
                 ON ledger (invoice_number, revision) WHERE status = 'PAID';
             """
         )
+        # Databases created before the review queue have no currency column.
+        columns = {row["name"] for row in self.conn.execute("PRAGMA table_info(ledger)")}
+        if "currency" not in columns:
+            self.conn.execute("ALTER TABLE ledger ADD COLUMN currency TEXT")
         self.conn.executemany(
             "INSERT OR IGNORE INTO inventory VALUES (?, ?, ?)", SEED_INVENTORY
         )
@@ -56,11 +60,27 @@ class Store:
         ).fetchall()
         return [dict(row) for row in rows]
 
-    def record(self, invoice_number, revision, vendor, amount, status, reason):
+    def record(self, invoice_number, revision, vendor, amount, status, reason, currency="USD"):
         self.conn.execute(
-            "INSERT INTO ledger (invoice_number, revision, vendor, amount, status, reason) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (invoice_number, revision or "", vendor, amount, status, reason),
+            "INSERT INTO ledger (invoice_number, revision, vendor, amount, status, reason, currency) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (invoice_number, revision or "", vendor, amount, status, reason, currency),
+        )
+        self.conn.commit()
+
+    def held_invoices(self):
+        rows = self.conn.execute("SELECT * FROM ledger WHERE status = 'HELD' ORDER BY id").fetchall()
+        return [dict(row) for row in rows]
+
+    def get_ledger_row(self, row_id):
+        row = self.conn.execute("SELECT * FROM ledger WHERE id = ?", (row_id,)).fetchone()
+        return dict(row) if row else None
+
+    def resolve_held(self, row_id, status, amount, reason):
+        """Move a held row to its final status. Raises sqlite3.IntegrityError on a second payment."""
+        self.conn.execute(
+            "UPDATE ledger SET status = ?, amount = ?, reason = ? WHERE id = ? AND status = 'HELD'",
+            (status, amount, reason, row_id),
         )
         self.conn.commit()
 

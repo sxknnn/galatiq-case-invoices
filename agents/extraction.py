@@ -134,7 +134,7 @@ def add_extraction(flow, on_success=None, on_failure=None):
         if not data["problems"]:
             return on_success
         repeated = data["problems"] == data["previous_problems"]
-        if data.get("structured") or repeated or data["attempts"] >= config.MAX_EXTRACTION_ATTEMPTS:
+        if data.get("structured") or repeated or data["attempts"] >= config.EXTRACTION_TRIES:
             # The source itself is bad, such as a due date of "yesterday". Validation reports it.
             state.log("verify", "Stopped retrying", problems=data["problems"])
             return on_success if data.get("invoice") else on_failure

@@ -79,10 +79,42 @@ def test_critic_changes_the_vp_decision_on_1012(store):
     assert data["drafts"][0].decision == "APPROVE"
     assert data["critiques"][0].verdict == "object"
     assert data["drafts"][-1].decision == "HOLD"
+    assert len(data["critiques"]) == 1
 
 
-def test_llm_cannot_approve_what_the_rules_reject(store):
-    data = decide("invoice_1003.txt", store, FakeLLM(APPROVE, AGREE)).data
+def test_clean_confident_small_invoice_skips_the_critic(store):
+    llm = FakeLLM(APPROVE)
+    data = decide("invoice_1001.txt", store, llm).data
+    assert data["critiques"] == []
+    assert data["decision"] == "APPROVE"
+
+
+def test_flagged_invoice_goes_to_the_critic(store):
+    assert len(decide("invoice_1010.txt", store).data["critiques"]) == 1
+
+
+def test_rejection_goes_to_the_critic(store):
+    assert len(decide("invoice_1002.txt", store).data["critiques"]) == 1
+
+
+def test_high_value_goes_to_the_critic(store, monkeypatch):
+    monkeypatch.setattr("config.REVIEW_LIMIT_USD", 1000)
+    data = decide("invoice_1001.txt", store, FakeLLM(APPROVE, AGREE)).data
+    assert len(data["critiques"]) == 1
+
+
+def test_vp_has_the_final_say_after_an_objection(store):
+    data = decide("invoice_1010.txt", store, FakeLLM(APPROVE, OBJECT, APPROVE)).data
+    assert len(data["drafts"]) == 2
+    assert data["decision"] == "APPROVE"
+
+
+def test_vp_can_change_its_decision_after_an_objection(store):
+    assert decide("invoice_1010.txt", store, FakeLLM(APPROVE, OBJECT, HOLD)).data["decision"] == "HOLD"
+
+
+def test_vp_cannot_approve_what_the_rules_reject(store):
+    data = decide("invoice_1003.txt", store, FakeLLM(APPROVE, OBJECT, APPROVE)).data
     assert data["decision"] == "REJECT"
     assert "Guardrail" in data["reason"]
 
@@ -91,20 +123,9 @@ def test_llm_can_be_stricter_than_the_rules(store):
     assert decide("invoice_1001.txt", store, FakeLLM(HOLD, AGREE)).data["decision"] == "HOLD"
 
 
-def test_critic_objection_triggers_a_revision(store):
-    data = decide("invoice_1001.txt", store, FakeLLM(APPROVE, OBJECT, HOLD, AGREE)).data
-    assert len(data["drafts"]) == 2
-    assert data["decision"] == "HOLD"
-
-
-def test_unresolved_objection_cannot_end_in_approval(store):
-    data = decide("invoice_1001.txt", store, FakeLLM(APPROVE, OBJECT, APPROVE, OBJECT)).data
-    assert data["decision"] == "HOLD"
-
-
 def test_vp_tool_call_reaches_the_database(store):
     call = {"name": "lookup_inventory", "args": {"item": "WidgetA"}, "id": "1"}
-    llm = FakeLLM(SimpleNamespace(content="", tool_calls=[call]), APPROVE, AGREE)
+    llm = FakeLLM(SimpleNamespace(content="", tool_calls=[call]), APPROVE)
     state = decide("invoice_1001.txt", store, llm)
     assert llm.tools
     assert any("lookup_inventory" in entry["message"] and entry["result"]["stock"] == 15
@@ -112,12 +133,19 @@ def test_vp_tool_call_reaches_the_database(store):
 
 
 def test_malformed_output_is_corrected(store):
-    assert decide("invoice_1001.txt", store, FakeLLM("not json", APPROVE, AGREE)).data["decision"] == "APPROVE"
+    assert decide("invoice_1001.txt", store, FakeLLM("not json", APPROVE)).data["decision"] == "APPROVE"
 
 
-def test_llm_outage_fails_safe_to_hold(store):
-    down = RuntimeError("connection refused")
-    assert decide("invoice_1001.txt", store, FakeLLM(down, down)).data["decision"] == "HOLD"
+def test_vp_failure_rejects_the_invoice(store):
+    data = decide("invoice_1001.txt", store, FakeLLM(RuntimeError("connection refused"), AGREE)).data
+    assert data["decision"] == "REJECT"
+    assert "failed" in data["reason"]
+
+
+def test_critic_failure_rejects_the_invoice(store):
+    data = decide("invoice_1010.txt", store, FakeLLM(APPROVE, RuntimeError("timeout"))).data
+    assert data["decision"] == "REJECT"
+    assert "failed" in data["reason"]
 
 
 def test_over_threshold_with_a_warning_is_held():

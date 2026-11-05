@@ -55,7 +55,7 @@ def main():
     results = []
     for number, path in enumerate(paths, start=1):
         print(f"[{number}/{len(paths)}] Processing {path.name}", flush=True)
-        results.append(process_invoice(path, store, llm, config.AUDIT_LOG))
+        results.append(process_invoice(path, store, llm, config.AUDIT_LOG_FILE))
 
     if args.json:
         print(json.dumps(results, indent=2, default=str))
@@ -65,7 +65,7 @@ def main():
     if len(results) > 1:
         counts = {name: sum(r["outcome"] == name for r in results) for name in ("PAID", "HELD", "REJECTED")}
         print(f"\nSummary: {counts['PAID']} paid, {counts['HELD']} held, {counts['REJECTED']} rejected")
-    print(f"\nAudit log: {config.AUDIT_LOG}")
+    print(f"\nAudit log: {config.AUDIT_LOG_FILE}")
 
 
 if __name__ == "__main__":

@@ -120,7 +120,7 @@ def _check_duplicates(invoice, store, add):
 
 
 def _check_risk_signals(invoice, raw_text, add):
-    threshold = config.APPROVAL_THRESHOLD
+    threshold = config.REVIEW_LIMIT_USD
     if INJECTION_RE.search(raw_text):
         add("PROMPT_INJECTION", "reject", "The document contains text trying to instruct the approval system.")
     if PRESSURE_RE.search(raw_text):
