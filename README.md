@@ -37,6 +37,49 @@ To use Grok, create a `.env` file containing `XAI_API_KEY=your_key`. To use anot
 
 The ledger is kept between runs, so processing a paid invoice again is rejected as a duplicate. Use `--reset` to start over.
 
+## Project layout
+
+```
+galatiq-case-invoices/
+├── app.py                  Streamlit app: start page, invoice processing, review queue and dashboard
+├── main.py                 Command line for one invoice or a whole folder
+├── config.py               Model choice, $10,000 review limit, retry count and file paths
+├── requirements.txt        Pinned Python dependencies
+├── .streamlit/
+│   └── config.toml         Light and dark theme colors
+├── agents/
+│   ├── extraction.py       Reads invoice fields, verifies them and retries with corrections
+│   ├── approval.py         VP and critic agents, their tools and the fixed policy rules
+│   └── llm.py              Creates the model, or falls back to the simulation with no key
+├── workflow/
+│   ├── engine.py           Builds and runs the LangGraph graph and records each step
+│   └── pipeline.py         Connects the stages and returns the result for one invoice
+├── services/
+│   ├── documents.py        Loads TXT, PDF, JSON, CSV and XML files and repairs OCR errors
+│   ├── text_fields.py      Pattern matching for invoice fields, used without a model
+│   ├── validation.py       Stock, total, duplicate, currency and fraud checks
+│   ├── payment.py          Mock payment, plus recording paid, held and rejected invoices
+│   └── review.py           Lets a person pay or reject a held invoice from the queue
+├── database/
+│   └── store.py            SQLite inventory and payment ledger, with the duplicate payment block
+├── schemas/
+│   └── models.py           Pydantic models for invoices, findings and decisions
+├── data/
+│   ├── invoices/           The 20 sample invoices
+│   └── generate_pdfs.py    Script from the case materials that creates the sample PDFs
+└── tests/
+    ├── test_documents.py   File reading
+    ├── test_extraction.py  Extraction and retries
+    ├── test_validation.py  Expected findings for each sample
+    ├── test_approval.py    Policy rules, VP and critic flow, and model failures
+    ├── test_engine.py      Workflow routing and step limits
+    ├── test_llm.py         Model setup
+    ├── test_pipeline.py    Full runs, outcomes and audit log
+    └── test_review.py      Human review and payment safeguards
+```
+
+The app also creates two files that git ignores: `data/autovoice.db` for the database and `logs/audit.jsonl` for the audit trail.
+
 ## How it works
 
 ```
@@ -87,17 +130,3 @@ In Demo mode, running all 20 files in filename order pays 6, holds 4 and rejects
 - Scanned PDFs with no text layer can't be read, because OCR was cut from scope.
 - Not all fraud is caught. There is no address or vendor check, which would need a real vendor list.
 - Non-USD invoices can only be rejected in the review queue, because the payment function only pays USD.
-
-## Project layout
-
-```
-app.py          Streamlit app
-main.py         command line
-config.py       model and settings
-agents/         extraction, VP and critic agents, model setup
-workflow/       LangGraph workflow and pipeline
-services/       file reading, validation, payment and human review
-database/       SQLite inventory and ledger
-schemas/        typed invoice and decision models
-tests/          expected results for the samples, plus failure cases
-```
