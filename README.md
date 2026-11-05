@@ -40,50 +40,48 @@ The ledger is kept between runs, so processing a paid invoice again is rejected 
 ## Project layout
 
 ```
-galatiq-case-invoices/
-├── app.py                  Streamlit app: start page, invoice processing, review queue and dashboard
-├── main.py                 Command line for one invoice or a whole folder
-├── config.py               Model choice, $10,000 review limit, retry count and file paths
-├── requirements.txt        Pinned Python dependencies
-├── .streamlit/
-│   └── config.toml         Light and dark theme colors
-├── agents/
-│   ├── extraction.py       Reads invoice fields, verifies them and retries with corrections
-│   ├── approval.py         VP and critic agents, their tools and the fixed policy rules
-│   └── llm.py              Creates the model, or falls back to the simulation with no key
-├── workflow/
-│   ├── engine.py           Builds and runs the LangGraph graph and records each step
-│   └── pipeline.py         Connects the stages and returns the result for one invoice
-├── services/
-│   ├── documents.py        Loads TXT, PDF, JSON, CSV and XML files and repairs OCR errors
-│   ├── text_fields.py      Pattern matching for invoice fields, used without a model
-│   ├── validation.py       Stock, total, duplicate, currency and fraud checks
-│   ├── payment.py          Mock payment, plus recording paid, held and rejected invoices
-│   └── review.py           Lets a person pay or reject a held invoice from the queue
-├── database/
-│   └── store.py            SQLite inventory and payment ledger, with the duplicate payment block
-├── schemas/
-│   └── models.py           Pydantic models for invoices, findings and decisions
-├── data/
-│   ├── invoices/           The 20 sample invoices
-│   └── generate_pdfs.py    Script from the case materials that creates the sample PDFs
-└── tests/
-    ├── test_documents.py   File reading
-    ├── test_extraction.py  Extraction and retries
-    ├── test_validation.py  Expected findings for each sample
-    ├── test_approval.py    Policy rules, VP and critic flow, and model failures
-    ├── test_engine.py      Workflow routing and step limits
-    ├── test_llm.py         Model setup
-    ├── test_pipeline.py    Full runs, outcomes and audit log
-    └── test_review.py      Human review and payment safeguards
+app.py       Streamlit app
+main.py      Command line
+config.py    Model and settings
+agents/      Extraction, VP and critic agents
+workflow/    LangGraph workflow
+services/    File reading, checks, payment and human review
+database/    SQLite inventory and payment ledger
+schemas/     Invoice and decision models
+data/        Sample invoices
+tests/       Tests for every stage
 ```
-
-The app also creates two files that git ignores: `data/autovoice.db` for the database and `logs/audit.jsonl` for the audit trail.
 
 ## How it works
 
-```
-file -> extract <-> verify -> validate -> VP <-> critic -> pay | hold | reject
+```mermaid
+flowchart TD
+    A([Invoice file]) --> B["Extract<br/>Parser or extraction agent"]
+    B --> C["Verify<br/>Schema, dates, source values"]
+    C -- "errors, up to 3 tries" --> B
+    C --> D["Check<br/>Stock, totals, duplicates, fraud signals"]
+    C -- "unreadable" --> L
+    D --> E["Policy rules<br/>Sets the most lenient decision allowed"]
+    E --> F["VP agent<br/>Policy and inventory tools"]
+    F --> G{"Over $10,000, any finding,<br/>or VP didn't approve?"}
+    G -- "yes" --> H["Critic agent<br/>Agrees or objects"]
+    H -- "objects, VP reconsiders once" --> F
+    H -- "agrees" --> I["Final decision<br/>Strictest of VP and policy rules"]
+    G -- "no" --> I
+    I -- "approved" --> J["Pay<br/>Mock payment, saved to ledger"]
+    I -- "held" --> K["Review queue<br/>A person pays or rejects"]
+    I -- "rejected" --> L["Reject<br/>Reason is logged"]
+    K -- "pay" --> J
+    K -- "reject" --> L
+
+    classDef agent fill:#15803D,stroke:#166534,color:#fff
+    classDef code fill:#334155,stroke:#1E293B,color:#fff
+    classDef person fill:#B45309,stroke:#92400E,color:#fff
+    classDef stop fill:#B91C1C,stroke:#991B1B,color:#fff
+    class B,F,H agent
+    class C,D,E,G,I,J code
+    class K person
+    class L stop
 ```
 
 | Stage | Who does it | What happens |
