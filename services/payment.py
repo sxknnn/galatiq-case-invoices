@@ -8,6 +8,19 @@ def mock_payment(vendor, amount):
     return {"status": "success"}
 
 
+def short_reason(state):
+    """One line for the ledger. The full reports stay with the run and in the audit log."""
+    findings = state.data.get("findings", [])
+    blocking = [finding for finding in findings if finding.severity != "warning"]
+    main = blocking or findings
+    if state.data.get("outcome") == "PAID" and not findings:
+        return "All checks passed."
+    if main:
+        extra = len(main) - 1
+        return main[0].message + (f" (+{extra} more)" if extra else "")
+    return state.data.get("reason", "").split(". ")[0].rstrip(".") + "."
+
+
 def _record(state, status):
     invoice = state.data.get("invoice")
     state.data["store"].record(
@@ -16,13 +29,14 @@ def _record(state, status):
         invoice.vendor if invoice else None,
         invoice.total if invoice else None,
         status,
-        state.data.get("reason", ""),
+        short_reason(state),
     )
 
 
 def pay(state):
     data = state.data
     invoice = data["invoice"]
+    data["outcome"] = "PAID"
     try:
         # Record first: the unique index blocks a second payment even if earlier checks missed it.
         _record(state, "PAID")

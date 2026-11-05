@@ -1,0 +1,5 @@
+[theme.light]
+primaryColor = "#15803D"
+
+[theme.dark]
+primaryColor = "#22C55E"

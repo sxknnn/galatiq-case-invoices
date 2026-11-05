@@ -36,10 +36,10 @@ def build_workflow():
     return flow
 
 
-def process_invoice(path, store, llm, audit_log=None):
+def process_invoice(path, store, llm, audit_log=None, on_step=None):
     """Run one invoice end to end and return a plain summary of what happened."""
     state = RunState(path=str(path), data={"llm": llm, "store": store})
-    build_workflow().run(state)
+    build_workflow().run(state, on_step)
     if audit_log:
         audit_log = Path(audit_log)
         audit_log.parent.mkdir(parents=True, exist_ok=True)

@@ -30,3 +30,12 @@ def test_endless_loop_is_stopped():
     flow.add_node("extract", attempt, "extract")
     with pytest.raises(RuntimeError):
         flow.run(RunState(path="invoice.txt"))
+
+
+def test_on_step_reports_each_step_in_order():
+    flow = Workflow(start="extract")
+    flow.add_node("extract", attempt, retry_until_third)
+    flow.add_node("finish", finish)
+    seen = []
+    flow.run(RunState(path="invoice.txt"), on_step=lambda name, state: seen.append(name))
+    assert seen == ["extract", "extract", "extract", "finish"]
