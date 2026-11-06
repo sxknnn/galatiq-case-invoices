@@ -183,6 +183,8 @@ LangGraph runs these stages, including the retry and critic loops. In Demo mode,
 
 ## Tests
 
+[![Tests](https://github.com/sxknnn/galatiq-case-invoices/actions/workflows/tests.yml/badge.svg)](https://github.com/sxknnn/galatiq-case-invoices/actions/workflows/tests.yml)
+
 There are 52 test functions, which expand to 98 cases. They need no API key, because scripted replies and the simulation stand in for the model.
 
 | File                       | What it covers                                                                             |
