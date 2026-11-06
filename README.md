@@ -198,7 +198,7 @@ To run them, use the command under **Run the tests** in [Quick start](#quick-sta
 
 ## Results on the sample invoices
 
-In Demo mode, running all 20 files in filename order pays 6, holds 4 and rejects 10, releasing $26,325. With a live model, the wording and some decisions may differ, but the rules still apply.
+All 20 files were run in filename order, once on live Grok (`xai:grok-4.7`) and once in Demo mode. Both runs gave the same outcome for every file: 6 paid, 4 held and 10 rejected, releasing $26,325. The written reasons differ, and another live run could reach different decisions, but the code rules still apply.
 
 | Invoice                            | Result               | Why                                                                               |
 | ---------------------------------- | -------------------- | --------------------------------------------------------------------------------- |
@@ -212,7 +212,7 @@ In Demo mode, running all 20 files in filename order pays 6, holds 4 and rejects
 | 1011 (TXT)                         | Rejected             | The same invoice in another format, already paid                                  |
 | 1013 (JSON and PDF)                | Rejected             | Lines look fine alone but exceed stock when summed, and the total is $50 too high |
 | 1004 revised                       | Held                 | Already paid at $1,890, so only the difference may be due                         |
-| 1012 (TXT and PDF)                 | Held                 | The critic objects: a vendor rename plus a total just under $10,000               |
+| 1012 (TXT and PDF)                 | Held                 | A vendor rename plus a total just under $10,000               |
 | 1014                               | Held                 | In EUR, and the payment function has no currency field                            |
 
 ## Assumptions and limits
@@ -229,7 +229,7 @@ In Demo mode, running all 20 files in filename order pays 6, holds 4 and rejects
 - **Not all fraud is caught.** There is no address or vendor check, which would need a real vendor list.
 - **Only USD can be paid.** Non-USD invoices can only be rejected in the review queue, because the payment function has no currency field.
 - **Payments are simulated.** No real money moves.
-- **Sample results come from Demo mode.** A live model may word things differently or make stricter decisions.
+- **The live results come from one run.** The 20 files matched Demo mode on that run, but a model can vary between runs.
 
 **Where to change things**
 
