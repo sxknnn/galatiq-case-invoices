@@ -8,11 +8,11 @@ It was built for the Galatiq invoice processing case. Acme Corp is fictional, th
 
 Acme loses an estimated $2M a year on manual invoice processing, with a 30% error rate and 5-day delays.
 
-| Problem | What AutoVoice changes |
-|---|---|
-| Errors and overpayments | Repeatable checks cover stock, totals, duplicates and fraud signals, and the database blocks a second payment |
-| 5-day delays | Clean invoices finish without a person, so staff only see the ones that need them |
-| Approvals lost in email chains | Each decision has written reasoning and an audit trail |
+| Problem                        | What AutoVoice changes                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Errors and overpayments        | Repeatable checks cover stock, totals, duplicates and fraud signals, and the database blocks a second payment |
+| 5-day delays                   | Clean invoices finish without a person, so staff only see the ones that need them                             |
+| Approvals lost in email chains | Each decision has written reasoning and an audit trail                                                        |
 
 These results come from 20 sample files, not production data. The share of the $2M this would recover would need to be measured in a pilot.
 
@@ -55,41 +55,33 @@ tests/       Tests for every stage
 ## How it works
 
 ```mermaid
-flowchart TD
-    A([Invoice file]) --> B["Extract<br/>Parser or extraction agent"]
-    B --> C["Verify<br/>Schema, dates, source values"]
-    C -- "errors, up to 3 tries" --> B
-    C --> D["Check<br/>Stock, totals, duplicates, fraud signals"]
-    C -- "unreadable" --> L
-    D --> E["Policy rules<br/>Sets the most lenient decision allowed"]
-    E --> F["VP agent<br/>Policy and inventory tools"]
-    F --> G{"Over $10,000, any finding,<br/>or VP didn't approve?"}
-    G -- "yes" --> H["Critic agent<br/>Agrees or objects"]
-    H -- "objects, VP reconsiders once" --> F
-    H -- "agrees" --> I["Final decision<br/>Strictest of VP and policy rules"]
-    G -- "no" --> I
-    I -- "approved" --> J["Pay<br/>Mock payment, saved to ledger"]
-    I -- "held" --> K["Review queue<br/>A person pays or rejects"]
-    I -- "rejected" --> L["Reject<br/>Reason is logged"]
-    K -- "pay" --> J
-    K -- "reject" --> L
+%%{init: {"flowchart": {"nodeSpacing": 60, "rankSpacing": 25, "wrappingWidth": 340}}}%%
+flowchart TB
+    A(["Invoice file"]) --> B["<b>Extract</b><br>Grok or parser code"]
+    B --> C["<b>Verify and check</b><br>Deterministic code"]
+    C -- "retry" --> B
+    C --> F["<b>VP agent</b><br>Grok, limited by code rules"]
+    F <-- "if risky" --> H["<b>Critic agent</b><br>Grok, second opinion"]
+    F -- "approve" --> J(["Pay"])
+    F -- "hold" --> K["<b>Human review</b><br>Person"]
+    F -- "reject" --> L(["Reject"])
+    K --> J
+    K --> L
 
     classDef agent fill:#15803D,stroke:#166534,color:#fff
     classDef code fill:#334155,stroke:#1E293B,color:#fff
     classDef person fill:#B45309,stroke:#92400E,color:#fff
-    classDef stop fill:#B91C1C,stroke:#991B1B,color:#fff
     class B,F,H agent
-    class C,D,E,G,I,J code
+    class C code
     class K person
-    class L stop
 ```
 
-| Stage | Who does it | What happens |
-|---|---|---|
-| **Read** | Parser for JSON, CSV and XML; model for TXT and PDF | Produces a checked invoice. A verifier catches schema errors, unreadable dates and values not found in the source, then sends them back for a retry. |
-| **Check** | Code | Compares the invoice with the SQLite inventory, and checks totals, duplicates, currency and fraud signals. |
-| **Approve** | VP and critic agents, within fixed rules | The VP uses tools to look up policy and inventory, then decides. High-value, risky or rejected invoices also go to a critic, who can send the decision back. The VP has the final say. |
-| **Pay** | Code | Pays only after approval. Otherwise the invoice is rejected or held, with the reason logged. |
+| Stage       | Who does it                                         | What happens                                                                                                                                                                           |
+| ----------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Read**    | Parser for JSON, CSV and XML; model for TXT and PDF | Produces a checked invoice. A verifier catches schema errors, unreadable dates and values not found in the source, then sends them back for a retry.                                   |
+| **Check**   | Code                                                | Compares the invoice with the SQLite inventory, and checks totals, duplicates, currency and fraud signals.                                                                             |
+| **Approve** | VP and critic agents, within fixed rules            | The VP uses tools to look up policy and inventory, then decides. High-value, risky or rejected invoices also go to a critic, who can send the decision back. The VP has the final say. |
+| **Pay**     | Code                                                | Pays only after approval. Otherwise the invoice is rejected or held, with the reason logged.                                                                                           |
 
 The workflow runs on LangGraph, including the retry and review loops.
 
@@ -106,20 +98,20 @@ The workflow runs on LangGraph, including the retry and review loops.
 
 In Demo mode, running all 20 files in filename order pays 6, holds 4 and rejects 10, releasing $26,325. With a live model, the wording and some decisions may differ, but the rules still apply.
 
-| Invoice | Result | Why |
-|---|---|---|
-| 1001, 1004, 1006, 1011 (PDF), 1015 | Paid | Clean |
-| 1010 | Paid, with a warning | A WidgetA rush line is 20% above catalog price |
-| 1002, 1005 | Rejected | GadgetX quantity exceeds stock |
-| 1003 | Rejected | Zero-stock item, a due date of "yesterday", and pressure language |
-| 1007 | Rejected | Exceeds stock, and the stated total is $110 too low |
-| 1008, 1016 | Rejected | Items not in inventory |
-| 1009 | Rejected | No vendor or due date, with a negative quantity and total |
-| 1011 (TXT) | Rejected | The same invoice in another format, already paid |
-| 1013 (JSON and PDF) | Rejected | Lines look fine alone but exceed stock when summed, and the total is $50 too high |
-| 1004 revised | Held | Already paid at $1,890, so only the difference may be due |
-| 1012 (TXT and PDF) | Held | The critic objects: a vendor rename plus a total just under $10,000 |
-| 1014 | Held | In EUR, and the payment function has no currency field |
+| Invoice                            | Result               | Why                                                                               |
+| ---------------------------------- | -------------------- | --------------------------------------------------------------------------------- |
+| 1001, 1004, 1006, 1011 (PDF), 1015 | Paid                 | Clean                                                                             |
+| 1010                               | Paid, with a warning | A WidgetA rush line is 20% above catalog price                                    |
+| 1002, 1005                         | Rejected             | GadgetX quantity exceeds stock                                                    |
+| 1003                               | Rejected             | Zero-stock item, a due date of "yesterday", and pressure language                 |
+| 1007                               | Rejected             | Exceeds stock, and the stated total is $110 too low                               |
+| 1008, 1016                         | Rejected             | Items not in inventory                                                            |
+| 1009                               | Rejected             | No vendor or due date, with a negative quantity and total                         |
+| 1011 (TXT)                         | Rejected             | The same invoice in another format, already paid                                  |
+| 1013 (JSON and PDF)                | Rejected             | Lines look fine alone but exceed stock when summed, and the total is $50 too high |
+| 1004 revised                       | Held                 | Already paid at $1,890, so only the difference may be due                         |
+| 1012 (TXT and PDF)                 | Held                 | The critic objects: a vendor rename plus a total just under $10,000               |
+| 1014                               | Held                 | In EUR, and the payment function has no currency field                            |
 
 ## Assumptions and limits
 
