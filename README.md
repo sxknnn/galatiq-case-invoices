@@ -97,6 +97,10 @@ To use another model, change the `MODEL` line in `config.py`.
 
 </details>
 
+## Demo
+
+https://github.com/user-attachments/assets/48fba87c-61ee-4b1c-9ba0-9e8af6b8d8d7
+
 ## Repository structure
 
 ```
