@@ -82,7 +82,7 @@ def test_critic_changes_the_vp_decision_on_1012(store):
     assert len(data["critiques"]) == 1
 
 
-def test_clean_confident_small_invoice_skips_the_critic(store):
+def test_clean_small_invoice_skips_the_critic(store):
     llm = FakeLLM(APPROVE)
     data = decide("invoice_1001.txt", store, llm).data
     assert data["critiques"] == []
