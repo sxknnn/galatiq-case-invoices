@@ -101,6 +101,36 @@ To use another model, change the `MODEL` line in `config.py`.
 
 https://github.com/user-attachments/assets/48fba87c-61ee-4b1c-9ba0-9e8af6b8d8d7
 
+## Screenshots
+
+<details>
+<summary><b>Start page</b></summary>
+
+![Start page](docs/screenshots/start-page.png)
+
+</details>
+
+<details>
+<summary><b>Process an invoice</b></summary>
+
+![Invoice result](docs/screenshots/invoice-result.png)
+
+</details>
+
+<details>
+<summary><b>Review queue</b></summary>
+
+![Review queue](docs/screenshots/review-queue.png)
+
+</details>
+
+<details>
+<summary><b>Dashboard</b></summary>
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+</details>
+
 ## Repository structure
 
 ```
@@ -155,12 +185,12 @@ LangGraph runs these stages, including the retry and critic loops. In Demo mode,
 
 There are 52 test functions, which expand to 98 cases. They need no API key, because scripted replies and the simulation stand in for the model.
 
-| File | What it covers |
-|---|---|
-| `tests/test_extraction.py` | Reading each file type, repairing OCR-style typos, and the extract and verify retry loop |
-| `tests/test_validation.py` | Expected findings for every sample invoice, duplicates, revisions and prompt injection |
-| `tests/test_approval.py` | Policy rules, when the critic runs, the VP's final say, and model failures |
-| `tests/test_workflow.py` | Model setup, loop limits, full runs, the audit log, human review and double payment blocks |
+| File                       | What it covers                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------ |
+| `tests/test_extraction.py` | Reading each file type, repairing OCR-style typos, and the extract and verify retry loop   |
+| `tests/test_validation.py` | Expected findings for every sample invoice, duplicates, revisions and prompt injection     |
+| `tests/test_approval.py`   | Policy rules, when the critic runs, the VP's final say, and model failures                 |
+| `tests/test_workflow.py`   | Model setup, loop limits, full runs, the audit log, human review and double payment blocks |
 
 To run them, use the command under **Run the tests** in [Quick start](#quick-start).
 
@@ -201,15 +231,15 @@ In Demo mode, running all 20 files in filename order pays 6, holds 4 and rejects
 
 **Where to change things**
 
-| To change | Go to | What to edit |
-|---|---|---|
-| The model | `config.py` | `MODEL`, such as `"xai:grok-4.7"` |
-| A different provider's key | `.env` and `agents/llm.py` | Add the key to `.env` and the provider to `PROVIDER_KEYS`. You may also need that provider's LangChain package. |
-| The $10,000 review limit | `config.py` | `REVIEW_LIMIT_USD` |
-| Extraction tries | `config.py` | `EXTRACTION_TRIES` |
-| Inventory and prices | `database/store.py` | `SEED_INVENTORY`, then delete `data/autovoice.db` so existing items update. This also clears results. |
-| Fraud phrases and price tolerance | `services/validation.py` | The patterns and limits at the top of the file |
-| VP and critic instructions | `agents/approval.py` | `VP_PROMPT` and `CRITIC_PROMPT` |
+| To change                         | Go to                      | What to edit                                                                                                    |
+| --------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| The model                         | `config.py`                | `MODEL`, such as `"xai:grok-4.7"`                                                                               |
+| A different provider's key        | `.env` and `agents/llm.py` | Add the key to `.env` and the provider to `PROVIDER_KEYS`. You may also need that provider's LangChain package. |
+| The $10,000 review limit          | `config.py`                | `REVIEW_LIMIT_USD`                                                                                              |
+| Extraction tries                  | `config.py`                | `EXTRACTION_TRIES`                                                                                              |
+| Inventory and prices              | `database/store.py`        | `SEED_INVENTORY`, then delete `data/autovoice.db` so existing items update. This also clears results.           |
+| Fraud phrases and price tolerance | `services/validation.py`   | The patterns and limits at the top of the file                                                                  |
+| VP and critic instructions        | `agents/approval.py`       | `VP_PROMPT` and `CRITIC_PROMPT`                                                                                 |
 
 ## Design decisions
 
