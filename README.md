@@ -256,3 +256,11 @@ All 20 files were run in filename order, once on live Grok (`xai:grok-4.7`) and 
 - **Invoice text is treated as data.** Text that tries to instruct the system causes a rejection.
 - **LangGraph runs the workflow.** The retry and critic loops are defined as a graph, with a step limit that stops a faulty loop.
 - **The model can be swapped in one line.** LangChain lets `MODEL` in `config.py` point to another provider, and the simulation keeps the app runnable with no key.
+
+## What I'd build next
+
+- **Scanned PDFs and images:** add OCR or a vision model, so invoices without a text layer can be read.
+- **A real vendor list:** check vendor names, addresses and bank details against approved suppliers.
+- **Currency conversion:** convert non-USD invoices with a trusted exchange rate, so they can be paid instead of only rejected.
+- **A real payment connection:** replace the mock payment with a bank API, with retries and reconciliation.
+- **Stock updates after payment:** reduce inventory when an invoice is paid, once the expected sample results allow it.
