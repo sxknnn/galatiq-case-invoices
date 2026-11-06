@@ -147,6 +147,19 @@ flowchart TB
 
 LangGraph runs these stages, including the retry and critic loops. In Demo mode, a built-in simulation stands in for Grok.
 
+## Tests
+
+There are 52 test functions, which expand to 98 cases. They need no API key, because scripted replies and the simulation stand in for the model.
+
+| File | What it covers |
+|---|---|
+| `tests/test_extraction.py` | Reading each file type, repairing OCR-style typos, and the extract and verify retry loop |
+| `tests/test_validation.py` | Expected findings for every sample invoice, duplicates, revisions and prompt injection |
+| `tests/test_approval.py` | Policy rules, when the critic runs, the VP's final say, and model failures |
+| `tests/test_workflow.py` | Model setup, loop limits, full runs, the audit log, human review and double payment blocks |
+
+To run them, use the command under **Run the tests** in [Quick start](#quick-start).
+
 ## Results on the sample invoices
 
 In Demo mode, running all 20 files in filename order pays 6, holds 4 and rejects 10, releasing $26,325. With a live model, the wording and some decisions may differ, but the rules still apply.
